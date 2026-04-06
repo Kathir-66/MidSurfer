@@ -9,7 +9,7 @@ This repository includes a GitHub Actions workflow that builds the MidSurfer plu
 3. Run the workflow or wait for it to run on `push` / `pull_request`.
 4. Download the artifact named `MidSurfer-windows-paraview-5.11.2`.
 
-The workflow downloads the official ParaView 5.11.2 Windows package, resolves `ParaViewConfig.cmake`, builds the plugin in `Release`, and uploads the generated MidSurfer plugin files.
+The workflow builds a ParaView 5.11.2 development tree in CI, installs its CMake package files, then builds the plugin in `Release` and uploads the generated MidSurfer plugin files.
 
 ## Install ParaView locally
 
@@ -33,4 +33,4 @@ The workflow downloads the official ParaView 5.11.2 Windows package, resolves `P
 3. Open `Fig11-IMM.vti` or `Fig11-OMM.vti`.
 4. Run `Filters -> MidSurfer -> Extract Midsurface (advanced)`.
 
-If ParaView refuses to load the plugin, treat it as a binary compatibility mismatch and rebuild against a ParaView 5.11.2 tree that exports a matching `ParaViewConfig.cmake`.
+If ParaView refuses to load the plugin, treat it as a binary compatibility mismatch between the plugin and the ParaView runtime you opened locally.

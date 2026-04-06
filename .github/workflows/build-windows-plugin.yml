@@ -9,7 +9,7 @@ on:
 
 env:
   PARAVIEW_VERSION: 5.11.2
-  PARAVIEW_WINDOWS_ZIP: https://www.paraview.org/files/v5.11/ParaView-5.11.2-Windows-Python3.9-msvc2017-AMD64.zip
+  PARAVIEW_GIT_TAG: v5.11.2
 
 jobs:
   build-windows-plugin:
@@ -25,34 +25,55 @@ jobs:
       - name: Set up Ninja
         uses: seanmiddleditch/gha-setup-ninja@v5
 
-      - name: Download ParaView runtime
+      - name: Clone ParaView source
         shell: pwsh
         run: |
-          $zipPath = Join-Path $env:RUNNER_TEMP "paraview-$env:PARAVIEW_VERSION.zip"
-          $extractRoot = Join-Path $env:RUNNER_TEMP "paraview"
-          Invoke-WebRequest -Uri $env:PARAVIEW_WINDOWS_ZIP -OutFile $zipPath
-          Expand-Archive -Path $zipPath -DestinationPath $extractRoot -Force
-          "PARAVIEW_EXTRACT_ROOT=$extractRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $srcDir = Join-Path $env:RUNNER_TEMP "paraview-src"
+          git clone --branch $env:PARAVIEW_GIT_TAG --depth 1 https://gitlab.kitware.com/paraview/paraview.git $srcDir
+          "PARAVIEW_SOURCE_DIR=$srcDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Configure ParaView
+        shell: pwsh
+        run: |
+          $buildDir = Join-Path $env:RUNNER_TEMP "paraview-build"
+          $installDir = Join-Path $env:RUNNER_TEMP "paraview-install"
+          cmake -S $env:PARAVIEW_SOURCE_DIR -B $buildDir -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_INSTALL_PREFIX=$installDir `
+            -DBUILD_SHARED_LIBS=ON `
+            -DPARAVIEW_BUILD_TESTING=OFF `
+            -DPARAVIEW_ENABLE_EXAMPLES=OFF `
+            -DPARAVIEW_USE_MPI=OFF `
+            -DPARAVIEW_USE_PYTHON=OFF `
+            -DPARAVIEW_USE_QT=OFF `
+            -DPARAVIEW_INSTALL_DEVELOPMENT_FILES=ON
+          "PARAVIEW_BUILD_DIR=$buildDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PARAVIEW_INSTALL_ROOT=$installDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Build and install ParaView
+        shell: pwsh
+        run: |
+          cmake --build $env:PARAVIEW_BUILD_DIR --config Release --target install --parallel
 
       - name: Locate ParaViewConfig.cmake
         id: paraview
         shell: pwsh
         run: |
-          $dir = powershell -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\scripts\Resolve-ParaViewDir.ps1" -SearchRoot $env:PARAVIEW_EXTRACT_ROOT
+          $dir = powershell -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\scripts\Resolve-ParaViewDir.ps1" -SearchRoot $env:PARAVIEW_INSTALL_ROOT
           if (-not $dir) {
             throw "Failed to resolve ParaView_DIR"
           }
           "dir=$dir" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "Resolved ParaView_DIR: $dir"
 
-      - name: Configure
+      - name: Configure MidSurfer
         shell: pwsh
         run: |
           cmake -S "$env:GITHUB_WORKSPACE" -B "$env:GITHUB_WORKSPACE\build" -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
             -DParaView_DIR="${{ steps.paraview.outputs.dir }}"
 
-      - name: Build
+      - name: Build MidSurfer
         shell: pwsh
         run: |
           cmake --build "$env:GITHUB_WORKSPACE\build" --config Release --verbose
