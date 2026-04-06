@@ -35,6 +35,10 @@ The MidSurfer plugin can be installed using the standard CMake procedure:
 2. Launch CMake with this repository as source folder
 3. Configure the project with `-DParaView_DIR=<path to ParaView build folder>`.
 
+### Windows local install with CI artifact
+
+For a Windows 5.11.2 workflow that avoids a full local ParaView source build, use the GitHub Actions workflow in [`.github/workflows/build-windows-plugin.yml`](.github/workflows/build-windows-plugin.yml) and then follow the runbook in [`docs/windows-local-install.md`](docs/windows-local-install.md).
+
 ## Using the MidSurfer Plugin
 
 Once the plugin has been built, it can be loaded via `Tools->Manage Plugins...`, pressing `Load New..` and selecting the plugin binary (`MidSurfer.[so|dll]`, depending on the operating system). This adds an entry `MidSurfer` in the `Filters` menu which provides the following filters:

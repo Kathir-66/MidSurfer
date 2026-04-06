@@ -1,0 +1,83 @@
+name: Build Windows Plugin
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+
+env:
+  PARAVIEW_VERSION: 5.11.2
+  PARAVIEW_WINDOWS_ZIP: https://www.paraview.org/files/v5.11/ParaView-5.11.2-Windows-Python3.9-msvc2017-AMD64.zip
+
+jobs:
+  build-windows-plugin:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Set up Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v5
+
+      - name: Download ParaView runtime
+        shell: pwsh
+        run: |
+          $zipPath = Join-Path $env:RUNNER_TEMP "paraview-$env:PARAVIEW_VERSION.zip"
+          $extractRoot = Join-Path $env:RUNNER_TEMP "paraview"
+          Invoke-WebRequest -Uri $env:PARAVIEW_WINDOWS_ZIP -OutFile $zipPath
+          Expand-Archive -Path $zipPath -DestinationPath $extractRoot -Force
+          "PARAVIEW_EXTRACT_ROOT=$extractRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Locate ParaViewConfig.cmake
+        id: paraview
+        shell: pwsh
+        run: |
+          $dir = powershell -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\scripts\Resolve-ParaViewDir.ps1" -SearchRoot $env:PARAVIEW_EXTRACT_ROOT
+          if (-not $dir) {
+            throw "Failed to resolve ParaView_DIR"
+          }
+          "dir=$dir" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "Resolved ParaView_DIR: $dir"
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S "$env:GITHUB_WORKSPACE" -B "$env:GITHUB_WORKSPACE\build" -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DParaView_DIR="${{ steps.paraview.outputs.dir }}"
+
+      - name: Build
+        shell: pwsh
+        run: |
+          cmake --build "$env:GITHUB_WORKSPACE\build" --config Release --verbose
+
+      - name: Collect plugin artifacts
+        shell: pwsh
+        run: |
+          $artifactRoot = Join-Path $env:RUNNER_TEMP "midsurfer-artifact"
+          New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
+
+          $patterns = @('MidSurfer*.dll', 'MidSurfer*.plugins', 'MidSurfer*.json', 'MidSurfer*.xml')
+          foreach ($pattern in $patterns) {
+            Get-ChildItem -Path "$env:GITHUB_WORKSPACE\build" -Recurse -Filter $pattern -File -ErrorAction SilentlyContinue |
+              Copy-Item -Destination $artifactRoot -Force
+          }
+
+          if (-not (Get-ChildItem -Path $artifactRoot -File -ErrorAction SilentlyContinue)) {
+            throw "No MidSurfer plugin artifacts were found under the build directory."
+          }
+
+          Get-ChildItem -Path $artifactRoot -File | Select-Object FullName
+
+      - name: Upload plugin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MidSurfer-windows-paraview-${{ env.PARAVIEW_VERSION }}
+          path: ${{ runner.temp }}\midsurfer-artifact\*
+          if-no-files-found: error
