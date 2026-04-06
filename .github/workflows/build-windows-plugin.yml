@@ -60,7 +60,10 @@ jobs:
         id: paraview
         shell: pwsh
         run: |
-          $dir = powershell -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\scripts\Resolve-ParaViewDir.ps1" -SearchRoot $env:PARAVIEW_INSTALL_ROOT
+          $dir = powershell -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\scripts\Resolve-ParaViewDir.ps1" -SearchRoot $env:PARAVIEW_BUILD_DIR 2>$null
+          if (-not $dir) {
+            $dir = powershell -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\scripts\Resolve-ParaViewDir.ps1" -SearchRoot $env:PARAVIEW_INSTALL_ROOT
+          }
           if (-not $dir) {
             throw "Failed to resolve ParaView_DIR"
           }
