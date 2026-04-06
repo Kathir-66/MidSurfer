@@ -30,6 +30,7 @@ jobs:
         run: |
           $srcDir = Join-Path $env:RUNNER_TEMP "paraview-src"
           git clone --branch $env:PARAVIEW_GIT_TAG --depth 1 https://gitlab.kitware.com/paraview/paraview.git $srcDir
+          git -C $srcDir submodule update --init --recursive --depth 1
           "PARAVIEW_SOURCE_DIR=$srcDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Configure ParaView
