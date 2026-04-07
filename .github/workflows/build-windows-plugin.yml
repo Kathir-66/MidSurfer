@@ -56,17 +56,11 @@ jobs:
         run: |
           cmake --build $env:PARAVIEW_BUILD_DIR --config Release --target install --parallel
 
-      - name: Locate ParaViewConfig.cmake
+      - name: Set ParaView_DIR
         id: paraview
         shell: pwsh
         run: |
-          $dir = powershell -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\scripts\Resolve-ParaViewDir.ps1" -SearchRoot $env:PARAVIEW_BUILD_DIR 2>$null
-          if (-not $dir) {
-            $dir = powershell -ExecutionPolicy Bypass -File "$env:GITHUB_WORKSPACE\scripts\Resolve-ParaViewDir.ps1" -SearchRoot $env:PARAVIEW_INSTALL_ROOT
-          }
-          if (-not $dir) {
-            throw "Failed to resolve ParaView_DIR"
-          }
+          $dir = $env:PARAVIEW_BUILD_DIR
           "dir=$dir" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "Resolved ParaView_DIR: $dir"
 
@@ -76,6 +70,15 @@ jobs:
           cmake -S "$env:GITHUB_WORKSPACE" -B "$env:GITHUB_WORKSPACE\build" -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
             -DParaView_DIR="${{ steps.paraview.outputs.dir }}"
+
+      - name: Debug ParaView package layout on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          Write-Host "Searching build tree for ParaView config files"
+          Get-ChildItem -Path $env:PARAVIEW_BUILD_DIR -Recurse -Include 'ParaViewConfig.cmake','paraview-config.cmake' -File -ErrorAction SilentlyContinue | Select-Object FullName
+          Write-Host "Searching install tree for ParaView config files"
+          Get-ChildItem -Path $env:PARAVIEW_INSTALL_ROOT -Recurse -Include 'ParaViewConfig.cmake','paraview-config.cmake' -File -ErrorAction SilentlyContinue | Select-Object FullName
 
       - name: Build MidSurfer
         shell: pwsh
